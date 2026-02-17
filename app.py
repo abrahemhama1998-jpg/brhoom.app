@@ -12,15 +12,26 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
     * { font-family: 'Cairo', sans-serif; direction: rtl; }
     
-    /* تنسيق الطباعة */
+    /* هذا الجزء هو السر: يضمن ظهور المحتوى عند الطباعة وإخفاء أزرار الموقع */
     @media print {
-        header, footer, .stTabs, button, .no-print, [data-testid="stHeader"], .stMarkdown:not(.printable) {
+        header, footer, .stTabs, button, .no-print, [data-testid="stHeader"], [data-testid="stSidebar"] {
             display: none !important;
         }
-        .printable { display: block !important; width: 100% !important; }
+        .printable-content {
+            display: block !important;
+            width: 100% !important;
+            border: none !important;
+        }
     }
-    .printable { display: none; }
-    .preview-box { border: 1px dashed #ccc; padding: 15px; border-radius: 8px; background: #fefefe; margin-top: 10px; }
+    /* تنسيق المعاينة في الشاشة */
+    .preview-style {
+        border: 2px solid #333;
+        padding: 20px;
+        background: white;
+        color: black;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,72 +73,53 @@ with tabs[0]:
                 new_row = {"ID": new_id, "الزبون": name, "الهاتف": phone, "الماركة": brand, "الموديل": model, "العطل": issue, "التكلفة": cost, "سعر_القطع": 0, "الحالة": "تحت الصيانة", "التاريخ": datetime.now().strftime("%Y-%m-%d"), "الصورة": img_to_base64(img_f)}
                 st.session_state.db = pd.concat([st.session_state.db, pd.DataFrame([new_row])], ignore_index=True)
                 save_data(st.session_state.db)
-                st.success(f"تم الحفظ برقم {new_id}، انتقل للبحث للطباعة.")
+                st.success(f"تم الحفظ برقم {new_id}")
 
-# 2. إدارة وبحث (التعديل + الزرين المنفصلين)
+# 2. إدارة وبحث
 with tabs[1]:
     sq = st.text_input("🔎 ابحث بالاسم أو رقم الوصل")
     if sq:
         results = st.session_state.db[st.session_state.db['الزبون'].astype(str).str.contains(sq) | st.session_state.db['ID'].astype(str).str.contains(sq)]
         for idx, row in results.iterrows():
             with st.expander(f"⚙️ {row['الزبون']} - {row['الموديل']}"):
-                # خيار التعديل
-                with st.form(f"edit_{idx}"):
-                    u_cost = st.number_input("التكلفة $", value=int(row['التكلفة']))
-                    u_parts = st.number_input("سعر القطع $", value=int(row['سعر_القطع']))
-                    u_status = st.selectbox("الحالة", ["تحت الصيانة", "تم التسليم"], index=0 if row['الحالة']=="تحت الصيانة" else 1)
-                    if st.form_submit_button("💾 حفظ"):
-                        st.session_state.db.loc[idx, ['التكلفة', 'سعر_القطع', 'الحالة']] = [u_cost, u_parts, u_status]
-                        save_data(st.session_state.db)
-                        st.rerun()
-
+                
                 qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ID_{row['ID']}"
                 
                 # --- القسم الأول: الوصل الكامل ---
-                st.markdown("---")
                 st.write("### 📄 إيصال الزبون")
+                # هنا المعاينة تظهر في الموقع "printable-content"
                 st.markdown(f"""
-                <div class="preview-box">معاينة الوصل الكامل</div>
-                <div class="printable">
-                    <div style="border:2px solid #000; padding:20px; direction:rtl; text-align:right;">
-                        <h1 style="text-align:center; margin:0;">الحل للتقنية للصيانة</h1>
-                        <p style="text-align:center;">هاتف: 0916206100</p>
-                        <hr>
-                        <p><b>رقم الإيصال:</b> {row['ID']}</p>
-                        <p><b>الزبون:</b> {row['الزبون']} | <b>الهاتف:</b> {row['الهاتف']}</p>
-                        <p><b>الجهاز:</b> {row['الماركة']} {row['الموديل']}</p>
-                        <p><b>العطل:</b> {row['العطل']}</p>
-                        <h2 style="text-align:center; background:#eee; padding:10px;">المطلوب: {row['التكلفة']} $</h2>
-                        <div style="text-align:center;"><img src="{qr_url}"></div>
-                    </div>
+                <div class="printable-content preview-style">
+                    <h1 style="text-align:center; margin:0; color:black;">الحل للتقنية للصيانة</h1>
+                    <p style="text-align:center; margin:0; color:black;">هاتف: 0916206100</p>
+                    <hr style="border:1px solid black;">
+                    <p style="color:black;"><b>رقم الإيصال:</b> {row['ID']}</p>
+                    <p style="color:black;"><b>الزبون:</b> {row['الزبون']} | <b>الهاتف:</b> {row['الهاتف']}</p>
+                    <p style="color:black;"><b>الجهاز:</b> {row['الماركة']} {row['الموديل']}</p>
+                    <p style="color:black;"><b>العطل:</b> {row['العطل']}</p>
+                    <h2 style="text-align:center; background:#eee; padding:10px; color:black;">المطلوب: {row['التكلفة']} $</h2>
+                    <div style="text-align:center;"><img src="{qr_url}"></div>
                 </div>
                 """, unsafe_allow_html=True)
-                if st.button(f"🖨️ طباعة الوصل للزبون", key=f"rec_{idx}"):
+                
+                if st.button(f"🖨️ طباعة الوصل", key=f"rec_{idx}"):
                     st.components.v1.html("<script>window.print();</script>", height=0)
 
                 # --- القسم الثاني: الستيكر الصغير ---
                 st.write("### 🏷️ ستيكر الجهاز")
                 st.markdown(f"""
-                <div class="preview-box">معاينة الستيكر الصغير</div>
-                <div class="printable">
-                    <div style="border:1px solid #000; padding:10px; width:220px; text-align:center; margin:0 auto; direction:rtl;">
-                        <h3 style="margin:0;">الحل للتقنية</h3>
-                        <b>{row['الزبون']}</b><br>
-                        <span>{row['الموديل']}</span><br>
-                        <img src="{qr_url}" width="80"><br>
-                        <b>ID: {row['ID']}</b>
-                    </div>
+                <div class="printable-content preview-style" style="width:250px; margin: 0 auto; text-align:center;">
+                    <h3 style="margin:0; color:black;">الحل للتقنية</h3>
+                    <b style="color:black;">{row['الزبون']}</b><br>
+                    <span style="color:black;">{row['الموديل']}</span><br>
+                    <img src="{qr_url}" width="80"><br>
+                    <b style="color:black;">ID: {row['ID']}</b>
                 </div>
                 """, unsafe_allow_html=True)
-                if st.button(f"🏷️ طباعة ستيكر الجهاز", key=f"stk_{idx}"):
+                
+                if st.button(f"🏷️ طباعة الستيكر", key=f"stk_{idx}"):
                     st.components.v1.html("<script>window.print();</script>", height=0)
 
 # 3. المالية
 with tabs[2]:
-    df = st.session_state.db
-    delivered = df[df['الحالة'] == "تم التسليم"]
-    c1, c2, c3 = st.columns(3)
-    c1.metric("💰 الدخل", f"{pd.to_numeric(delivered['التكلفة']).sum()} $")
-    c2.metric("📉 القطع", f"{pd.to_numeric(delivered['سعر_القطع']).sum()} $")
-    c3.metric("✅ الربح", f"{pd.to_numeric(delivered['التكلفة']).sum() - pd.to_numeric(delivered['سعر_القطع']).sum()} $")
-    st.table(df.drop(columns=['الصورة']))
+    st.dataframe(st.session_state.db.drop(columns=['الصورة']))
