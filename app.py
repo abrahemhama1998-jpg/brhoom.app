@@ -7,25 +7,51 @@ import base64
 # --- إعدادات الصفحة ---
 st.set_page_config(page_title="الحل للتقنية", layout="wide")
 
-# CSS لإصلاح شكل الواجهة فقط (الطباعة سنعتمد فيها على التوليد المباشر)
+# CSS قوي جداً للطباعة: يحدد ما يظهر وما يختفي بدقة
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
     * { font-family: 'Cairo', sans-serif; direction: rtl; }
-    .stMetric { background: #f8f9fa; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .main-box { border: 1px solid #ddd; padding: 20px; border-radius: 10px; background: white; }
+    
+    /* عند الطباعة: اخفِ كل شيء إلا منطقة المعاينة */
+    @media print {
+        header, footer, .stTabs, .stButton, [data-testid="stHeader"], .no-print {
+            display: none !important;
+        }
+        .print-container {
+            display: block !important;
+            width: 100% !important;
+            color: black !important;
+            background: white !important;
+        }
+    }
+    
+    /* شكل المعاينة في المنظومة */
+    .receipt-preview {
+        border: 2px solid #000;
+        padding: 20px;
+        background: #fff;
+        color: #000;
+        margin-bottom: 20px;
+        border-radius: 10px;
+    }
+    .sticker-preview {
+        border: 1px solid #000;
+        padding: 10px;
+        width: 250px;
+        margin: 0 auto;
+        text-align: center;
+        background: #fff;
+        color: #000;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-DB_FILE = "tech_solution_final_v12.csv"
+DB_FILE = "solution_v15_stable.csv"
 
 def load_data():
     if os.path.exists(DB_FILE):
-        df = pd.read_csv(DB_FILE)
-        cols = ["ID", "الزبون", "الهاتف", "الماركة", "الموديل", "العطل", "التكلفة", "سعر_القطع", "الحالة", "التاريخ", "الصورة"]
-        for col in cols:
-            if col not in df.columns: df[col] = 0 if "سعر" in col or "التكلفة" in col else ""
-        return df
+        return pd.read_csv(DB_FILE)
     return pd.DataFrame(columns=["ID", "الزبون", "الهاتف", "الماركة", "الموديل", "العطل", "التكلفة", "سعر_القطع", "الحالة", "التاريخ", "الصورة"])
 
 def save_data(df):
@@ -38,34 +64,19 @@ def img_to_base64(file):
     if file: return base64.b64encode(file.getvalue()).decode()
     return ""
 
-# دالة توليد صفحة الطباعة لمنع ظهور الصفحة البيضاء
-def get_print_script(html_content):
-    return f"""
-    <script>
-    var win = window.open('', '', 'height=700,width=900');
-    win.document.write('<html><head><title>طباعة</title>');
-    win.document.write('<style>body {{ font-family: Cairo, sans-serif; direction: rtl; text-align: right; color: black; background: white; }}</style>');
-    win.document.write('</head><body>');
-    win.document.write('{html_content}');
-    win.document.write('</body></html>');
-    win.document.close();
-    win.print();
-    </script>
-    """
+st.title("🛠️ الحل للتقنية - الإدارة الاحترافية")
 
-st.title("🛠️ منظومة الحل للتقنية - الإصدار المستقر")
+tabs = st.tabs(["➕ استلام جهاز", "🔍 إدارة وبحث وتعديل", "📊 التقارير المالية"])
 
-tabs = st.tabs(["➕ إضافة جهاز", "🔍 الإدارة والتعديل", "📊 المالية"])
-
-# 1. إضافة جهاز
+# --- 1. استلام جهاز ---
 with tabs[0]:
     with st.form("add_form"):
         c1, c2 = st.columns(2)
         name = c1.text_input("اسم الزبون")
         phone = c1.text_input("رقم الهاتف")
-        brand = c2.selectbox("الماركة", ["iPhone", "Samsung", "Xiaomi", "أخرى"])
+        brand = c2.selectbox("الماركة", ["iPhone", "Samsung", "Xiaomi", "Infinix", "أخرى"])
         model = c2.text_input("الموديل")
-        cost = c1.number_input("التكلفة $", min_value=0)
+        cost = c1.number_input("التكلفة الكلية $", min_value=0)
         issue = c2.text_area("وصف العطل")
         img_f = st.file_uploader("📸 صورة الجهاز")
         if st.form_submit_button("✅ حفظ البيانات"):
@@ -76,55 +87,77 @@ with tabs[0]:
                 save_data(st.session_state.db)
                 st.success(f"تم الحفظ! رقم الوصل: {new_id}")
 
-# 2. الإدارة والتعديل الشامل
+# --- 2. إدارة وبحث وتعديل شامل ---
 with tabs[1]:
-    sq = st.text_input("🔎 ابحث بالاسم أو رقم الوصل")
-    if sq:
-        df = st.session_state.db
-        results = df[df['الزبون'].astype(str).str.contains(sq) | df['ID'].astype(str).str.contains(sq)]
+    search = st.text_input("🔎 ابحث بالاسم أو رقم الوصل")
+    if search:
+        results = st.session_state.db[st.session_state.db['الزبون'].astype(str).str.contains(search) | st.session_state.db['ID'].astype(str).str.contains(search)]
         for idx, row in results.iterrows():
-            with st.expander(f"⚙️ تعديل: {row['الزبون']} (ID: {row['ID']})"):
+            with st.expander(f"📋 {row['الزبون']} - {row['الموديل']} (ID: {row['ID']})"):
+                
+                # عرض الصورة
                 if row['الصورة'] and len(str(row['الصورة'])) > 50:
                     st.image(base64.b64decode(row['الصورة']), width=200)
-                
+
                 # التعديل الشامل
-                with st.form(f"edit_f_{idx}"):
-                    col1, col2 = st.columns(2)
-                    u_name = col1.text_input("الاسم", value=row['الزبون'])
-                    u_phone = col1.text_input("الهاتف", value=row['الهاتف'])
-                    u_cost = col2.number_input("التكلفة $", value=int(row['التكلفة']))
-                    u_parts = col2.number_input("سعر القطع $", value=int(row['سعر_القطع']))
-                    u_status = col1.selectbox("الحالة", ["تحت الصيانة", "تم التسليم"], index=0 if row['الحالة']=="تحت الصيانة" else 1)
-                    u_issue = col2.text_area("وصف العطل", value=row['العطل'])
-                    u_img = st.file_uploader("تحديث الصورة", key=f"img_{idx}")
+                with st.form(f"edit_{idx}"):
+                    c1, c2 = st.columns(2)
+                    u_name = c1.text_input("الاسم", value=row['الزبون'])
+                    u_phone = c1.text_input("الهاتف", value=row['الهاتف'])
+                    u_cost = c2.number_input("التكلفة $", value=int(row['التكلفة']))
+                    u_parts = c2.number_input("سعر القطع $", value=int(row['سعر_القطع']))
+                    u_status = c1.selectbox("الحالة", ["تحت الصيانة", "تم التسليم"], index=0 if row['الحالة']=="تحت الصيانة" else 1)
+                    u_issue = c2.text_area("العطل", value=row['العطل'])
+                    u_img = st.file_uploader("تحديث الصورة", key=f"img_u_{idx}")
                     if st.form_submit_button("💾 حفظ التعديلات"):
                         img_final = img_to_base64(u_img) if u_img else row['الصورة']
                         st.session_state.db.loc[idx] = [row['ID'], u_name, u_phone, row['الماركة'], row['الموديل'], u_issue, u_cost, u_parts, u_status, row['التاريخ'], img_final]
                         save_data(st.session_state.db)
                         st.rerun()
 
-                # --- الطباعة ---
+                # --- منطقة الطباعة (معاينة حية) ---
                 qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=ID_{row['ID']}"
                 
-                c_p1, c_p2 = st.columns(2)
+                st.write("### 🖨️ خيارات الطباعة")
                 
-                # محتوى الوصل
-                receipt_html = f"<h2>الحل للتقنية للصيانة</h2><hr><p>رقم الوصل: {row['ID']}</p><p>الزبون: {row['الزبون']}</p><p>الهاتف: {row['الهاتف']}</p><p>الجهاز: {row['الموديل']}</p><p>العطل: {row['العطل']}</p><h3>المطلوب: {row['التكلفة']} $</h3><center><img src='{qr_url}'></center>"
-                if c_p1.button(f"🖨️ طباعة الوصل", key=f"btn_r_{idx}"):
-                    st.components.v1.html(get_print_script(receipt_html), height=0)
+                # معاينة الوصل
+                st.markdown(f"""
+                <div class="print-container receipt-preview">
+                    <h1 style="text-align:center; margin:0;">الحل للتقنية للصيانة</h1>
+                    <p style="text-align:center;">هاتف: 0916206100</p>
+                    <hr style="border:1px solid black;">
+                    <p><b>رقم الإيصال:</b> {row['ID']}</p>
+                    <p><b>الزبون:</b> {row['الزبون']} | <b>الهاتف:</b> {row['الهاتف']}</p>
+                    <p><b>الجهاز:</b> {row['الماركة']} {row['الموديل']}</p>
+                    <p><b>العطل:</b> {row['العطل']}</p>
+                    <h2 style="text-align:center; background:#eee; padding:10px;">المبلغ: {row['التكلفة']} $</h2>
+                    <div style="text-align:center;"><img src="{qr_url}"></div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"طباعة الوصل #{row['ID']}", key=f"p_rec_{idx}"):
+                    st.markdown('<script>window.print();</script>', unsafe_allow_html=True)
 
-                # محتوى الستيكر
-                sticker_html = f"<div style='border:1px solid black; padding:10px; width:200px; text-align:center;'><h3>الحل للتقنية</h3><b>{row['الزبون']}</b><br>{row['الموديل']}<br><img src='{qr_url}' width='80'><br>ID: {row['ID']}</div>"
-                if c_p2.button(f"🏷️ طباعة الستيكر", key=f"btn_s_{idx}"):
-                    st.components.v1.html(get_print_script(sticker_html), height=0)
+                st.write("---")
+                
+                # معاينة الستيكر
+                st.markdown(f"""
+                <div class="print-container sticker-preview">
+                    <h3 style="margin:5px;">الحل للتقنية</h3>
+                    <b>{row['الزبون']}</b><br>
+                    <span>{row['الموديل']}</span><br>
+                    <img src="{qr_url}" width="90"><br>
+                    <b>ID: {row['ID']}</b>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"طباعة الستيكر #{row['ID']}", key=f"p_stk_{idx}"):
+                    st.markdown('<script>window.print();</script>', unsafe_allow_html=True)
 
-# 3. المالية
+# --- 3. المالية ---
 with tabs[2]:
     delivered = st.session_state.db[st.session_state.db['الحالة'] == "تم التسليم"]
     c1, c2, c3 = st.columns(3)
     c1.metric("💰 المقبوضات", f"{pd.to_numeric(delivered['التكلفة']).sum()} $")
-    c2.metric("📉 القطع", f"{pd.to_numeric(delivered['سعر_القطع']).sum()} $")
+    c2.metric("📉 تكلفة القطع", f"{pd.to_numeric(delivered['سعر_القطع']).sum()} $")
     profit = pd.to_numeric(delivered['التكلفة']).sum() - pd.to_numeric(delivered['سعر_القطع']).sum()
-    c3.metric("✅ الصافي", f"{profit} $")
-    st.write("### سجل العمليات")
-    st.table(st.session_state.db.drop(columns=['الصورة']))
+    c3.metric("✅ صافي الربح", f"{profit} $")
+    st.dataframe(st.session_state.db.drop(columns=['الصورة']))
