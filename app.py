@@ -7,22 +7,18 @@ import base64
 # --- إعدادات الصفحة ---
 st.set_page_config(page_title="الحل للتقنية", layout="wide")
 
-# كود CSS للطباعة الفورية وتنسيق الواجهة
+# كود CSS محسن لإظهار الوصل المطلوب فقط عند الطباعة
 st.markdown("""
     <style>
     @media print {
-        header, footer, .stTabs, .stButton, .no-print, [data-testid="stHeader"], [data-testid="stSidebar"], .stMarkdown button {
+        header, footer, .stTabs, .stButton, .no-print, [data-testid="stHeader"], [data-testid="stSidebar"] {
             display: none !important;
         }
-        .printable { display: block !important; direction: rtl !important; width: 100% !important; }
+        .print-only { display: block !important; direction: rtl !important; }
     }
-    .printable { display: none; }
+    .print-only { display: none; }
     .receipt-box { border: 2px solid #000; padding: 20px; direction: rtl; text-align: right; background: white; color: black; }
     .sticker-box { border: 1px solid #000; padding: 5px; width: 220px; text-align: center; direction: rtl; background: white; color: black; }
-    .btn-print {
-        display: inline-block; padding: 12px 24px; background-color: #28a745; color: white !important;
-        text-decoration: none; border-radius: 8px; font-weight: bold; text-align: center; margin: 10px 0; width: 100%;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,16 +47,16 @@ st.title("🛠️ الحل للتقنية للصيانة")
 
 tabs = st.tabs(["➕ إضافة جهاز", "🔍 بحث وتعديل شامل", "📊 المالية"])
 
-# --- 1. إضافة جهاز جديد ---
+# --- 1. إضافة جهاز ---
 with tabs[0]:
-    with st.form("main_add_form", clear_on_submit=True):
+    with st.form("add_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         name = c1.text_input("اسم الزبون")
         phone = c1.text_input("رقم الهاتف")
         brand = c1.selectbox("الماركة", ["iPhone", "Samsung", "Xiaomi", "Infinix", "Techno", "أخرى"])
         model = c2.text_input("الموديل")
         cost = c2.number_input("التكلفة $", min_value=0)
-        issue = c2.text_area("العطل")
+        issue = c2.text_area("وصف العطل")
         img_in = st.file_uploader("📸 صورة الجهاز", type=["jpg", "png", "jpeg"])
         if st.form_submit_button("✅ حفظ الجهاز"):
             if name and phone:
@@ -69,20 +65,20 @@ with tabs[0]:
                 new_entry = {"ID": new_id, "الزبون": name, "الهاتف": phone, "الماركة": brand, "الموديل": model, "العطل": issue, "التكلفة": cost, "سعر_القطع": 0, "الحالة": "تحت الصيانة", "التاريخ": datetime.now().strftime("%Y-%m-%d"), "الصورة": img_data}
                 st.session_state.db = pd.concat([st.session_state.db, pd.DataFrame([new_entry])], ignore_index=True)
                 save_data(st.session_state.db)
-                st.success(f"تم الحفظ بنجاح! رقم الجهاز: {new_id}")
+                st.success("تم الحفظ بنجاح!")
 
-# --- 2. البحث والتعديل والطباعة ---
+# --- 2. البحث والتعديل ---
 with tabs[1]:
     search_q = st.text_input("ابحث بالاسم أو الهاتف", value=st.query_params.get("search", ""))
     if search_q:
         df = st.session_state.db
         results = df[df['الزبون'].astype(str).str.contains(search_q) | df['الهاتف'].astype(str).str.contains(search_q)]
         for idx, row in results.iterrows():
-            with st.expander(f"📋 {row['الزبون']} - {row['الموديل']} (ID: {row['ID']})", expanded=True):
+            with st.expander(f"📋 {row['الزبون']} - {row['الموديل']} (ID: {row['ID']})"):
                 if str(row.get('الصورة')) != "nan" and row.get('الصورة') != "":
                     st.image(base64.b64decode(row['الصورة']), width=200)
 
-                with st.form(f"edit_all_{idx}"):
+                with st.form(f"edit_{idx}"):
                     c1, c2 = st.columns(2)
                     u_name = c1.text_input("الاسم", value=row['الزبون'])
                     u_phone = c1.text_input("الهاتف", value=row['الهاتف'])
@@ -104,26 +100,35 @@ with tabs[1]:
                         save_data(st.session_state.db)
                         st.rerun()
 
-                # --- زر الطباعة الفوري ---
+                # --- أزرار الطباعة المنفصلة ---
+                st.write("### 🖨️ خيارات الطباعة")
+                p_col1, p_col2 = st.columns(2)
+                
                 qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://brhoom-tech.streamlit.app/?search={u_phone}"
-                st.markdown(f"""
-                <div class="printable">
-                    <div class="receipt-box">
-                        <h2 style="text-align:center;">الحل للتقنية للصيانة</h2>
-                        <p style="text-align:center;">رقم التواصل: 0916206100</p><hr>
-                        <p><b>رقم الوصل:</b> {row['ID']} | <b>الزبون:</b> {u_name}</p>
-                        <p><b>الجهاز:</b> {row['الماركة']} {row['الموديل']}</p>
-                        <p><b>العطل:</b> {u_issue}</p>
-                        <p><b>التكلفة:</b> {u_cost} $</p>
-                        <p><b>التاريخ:</b> {row['التاريخ']}</p>
-                    </div>
-                    <div style="page-break-before: always;" class="sticker-box">
-                        <b>{u_name}</b><br>{row['الماركة']} {row['الموديل']}<br>
-                        <img src="{qr_url}" width="90"><br>ID: {row['ID']}
-                    </div>
-                </div>
-                <a href="javascript:window.print()" class="btn-print">🖨️ اضغط هنا للطباعة فوراً</a>
-                """, unsafe_allow_html=True)
+                
+                # زر الوصل
+                if p_col1.button(f"📄 تجهيز وصل الزبون", key=f"pr_{idx}"):
+                    st.markdown(f"""
+                        <div class="print-only receipt-box">
+                            <h2 style="text-align:center;">الحل للتقنية للصيانة</h2>
+                            <p style="text-align:center;">تواصل: 0916206100</p><hr>
+                            <p><b>رقم الوصل:</b> {row['ID']} | <b>الزبون:</b> {u_name}</p>
+                            <p><b>الجهاز:</b> {row['الماركة']} {row['الموديل']}</p>
+                            <p><b>العطل:</b> {u_issue} | <b>التكلفة:</b> {u_cost} $</p>
+                            <p><b>التاريخ:</b> {row['التاريخ']}</p>
+                        </div>
+                        <p class="no-print">✅ تم تجهيز الوصل. الآن اضغط (مشاركة -> طباعة) من المتصفح.</p>
+                    """, unsafe_allow_html=True)
+
+                # زر الستيكر
+                if p_col2.button(f"🏷️ تجهيز ستيكر الجهاز", key=f"ps_{idx}"):
+                    st.markdown(f"""
+                        <div class="print-only sticker-box">
+                            <b>{u_name}</b><br>{row['الماركة']} {row['الموديل']}<br>
+                            <img src="{qr_url}" width="90"><br>ID: {row['ID']}
+                        </div>
+                        <p class="no-print">✅ تم تجهيز الستيكر. الآن اضغط (مشاركة -> طباعة) من المتصفح.</p>
+                    """, unsafe_allow_html=True)
 
 # --- 3. المالية ---
 with tabs[2]:
