@@ -7,7 +7,7 @@ import urllib.parse
 # --- إعدادات الصفحة ---
 st.set_page_config(page_title="الحل للتقنية", layout="wide")
 
-APP_URL = "https://brhoom-tech.streamlit.app" 
+APP_URL = "https://brhoom-tech1.streamlit.app" 
 DB_FILE = "maintenance_data.csv"
 
 def load_data():
